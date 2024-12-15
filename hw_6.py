@@ -5,7 +5,9 @@ import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 import argparse
+
 
 
 class LinearClassifier(nn.Module):
