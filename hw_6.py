@@ -93,7 +93,7 @@ if __name__ == '__main__':
 
     # create model
     if args.model == 'linear':
-        model = LinearModel()
+        model = LinearClassifier()
     elif args.model == 'fcnn':
         model = FCNN()
     else:
