@@ -41,6 +41,7 @@ class FCNN(nn.Module):
         x = F.relu(self.fc2(x))
         x = self.Dropout(x)
         x = self.fc3(x)
+        x = x.view(x.size(0), -1)  # Flatten input
         return x
 
 
