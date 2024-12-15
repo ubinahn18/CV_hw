@@ -26,7 +26,7 @@ class FCNN(nn.Module):
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=(3,3), padding=(1,1))
         self.conv2 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=(3,3), padding=(1,1))
         self.pool = nn.MaxPool2d(2,2)
-        self.fc1 = nn.Linear(in_features=8*8*128, out_features=256)
+        self.fc1 = nn.Linear(in_features=16*16*128, out_features=256)
         self.fc2 = nn.Linear(in_features=256, out_features=10)
         self.dropout = nn.Dropout(0.25)
 
