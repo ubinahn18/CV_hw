@@ -23,25 +23,21 @@ class LinearClassifier(nn.Module):
 class FCNN(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=48, kernel_size=(3,3), padding=(1,1))
-        self.conv2 = nn.Conv2d(in_channels=48, out_channels=96, kernel_size=(3,3), padding=(1,1))
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=(3,3), padding=(1,1))
+        self.conv2 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=(3,3), padding=(1,1))
         self.pool = nn.MaxPool2d(2,2)
-        self.fc1 = nn.Linear(in_features=8*8*256, out_features=512)
-        self.fc2 = nn.Linear(in_features=512, out_features=64)
-        self.Dropout = nn.Dropout(0.25)
-        self.fc3 = nn.Linear(in_features=64, out_features=10)
+        self.fc1 = nn.Linear(in_features=8*8*128, out_features=256)
+        self.fc2 = nn.Linear(in_features=256, out_features=10)
+        self.dropout = nn.Dropout(0.25)
 
     def forward(self, x):
-        x = F.relu(self.conv1(x)) #32*32*48
-        x = F.relu(self.conv2(x)) #32*32*96
-        x = self.pool(x) #16*16*96
-        x = self.Dropout(x)
-        x = x.view(-1, 8*8*256) # reshape x
+        x = F.relu(self.conv1(x))   # [batch_size, 64, 32, 32]
+        x = self.pool(F.relu(self.conv2(x)))  # [batch_size, 128, 16, 16]
+        x = self.dropout(x)
+        x = x.view(x.size(0), -1)   # Flatten to [batch_size, 8*8*128]
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.Dropout(x)
-        x = self.fc3(x)
-        x = x.view(x.size(0), -1)  # Flatten input
+        x = self.dropout(x)
+        x = self.fc2(x)
         return x
 
 
