@@ -115,7 +115,7 @@ if __name__ == '__main__':
 
     # create optimizer
     if args.optimizer == 'adamw':
-        optimizer = optim.AdamW(model.parameters(), lr=0.001)
+        optimizer = optim.AdamW(model.parameters(), lr=0.01)
     elif args.optimizer == 'sgd':
         optimizer = optim.SGD(model.parameters(), lr=0.01)
     else:
