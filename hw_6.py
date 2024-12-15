@@ -19,7 +19,7 @@ class LinearClassifier(nn.Module):
 
 
 class FCNN(nn.Module):
-     def __init__(self):
+    def __init__(self):
         super(ConvNet, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=48, kernel_size=(3,3), padding=(1,1))
         self.conv2 = nn.Conv2d(in_channels=48, out_channels=96, kernel_size=(3,3), padding=(1,1))
