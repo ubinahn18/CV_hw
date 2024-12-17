@@ -22,23 +22,40 @@ class LinearClassifier(nn.Module):
 
 class FCNN(nn.Module):
     def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=(3,3), padding=(1,1))
-        self.conv2 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=(3,3), padding=(1,1))
+        super(FCNN, self).__init__()
+        
+        # Convolutional layers
+                            #Init_channels, channels, kernel_size, padding) 
+        self.conv1 = nn.Conv2d(3, 16, 3, padding=1)
+        self.conv2 = nn.Conv2d(16, 32, 3, padding=1)
+        self.conv3 = nn.Conv2d(32, 64, 3, padding=1)
+        
+        # Pooling layers
         self.pool = nn.MaxPool2d(2,2)
-        self.fc1 = nn.Linear(in_features=16*16*128, out_features=256)
-        self.fc2 = nn.Linear(in_features=256, out_features=10)
+        
+        # FC layers
+        # Linear layer (64x4x4 -> 500)
+        self.fc1 = nn.Linear(64 * 4 * 4, 500)
+        
+        # Linear Layer (500 -> 10)
+        self.fc2 = nn.Linear(500, 10)
+        
+        # Dropout layer
         self.dropout = nn.Dropout(0.25)
-
+        
     def forward(self, x):
-        x = F.relu(self.conv1(x))   # [batch_size, 64, 32, 32]
-        x = self.pool(F.relu(self.conv2(x)))  # [batch_size, 128, 16, 16]
+        x = self.pool(F.elu(self.conv1(x)))
+        x = self.pool(F.elu(self.conv2(x)))
+        x = self.pool(F.elu(self.conv3(x)))
+        
+        # Flatten the image
+        x = x.view(-1, 64*4*4)
         x = self.dropout(x)
-        x = x.view(x.size(0), -1)   # Flatten to [batch_size, 8*8*128]
-        x = F.relu(self.fc1(x))
+        x = F.elu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
         return x
+
 
 
 
@@ -101,7 +118,7 @@ if __name__ == '__main__':
     parser.add_argument('--model', type=str, default='linear')
     parser.add_argument('--optimizer', type=str, default='adamw')
     parser.add_argument('--scheduler', type=str, default='step')
-    parser.add_argument('--epochs', type=int, default=10)
+    parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     args = parser.parse_args()
 
@@ -117,7 +134,7 @@ if __name__ == '__main__':
     if args.optimizer == 'adamw':
         optimizer = optim.AdamW(model.parameters(), lr=0.01)
     elif args.optimizer == 'sgd':
-        optimizer = optim.SGD(model.parameters(), lr=0.01)
+        optimizer = optim.SGD(model.parameters(), lr=0.001, momentum = 0.9)
     else:
         raise AssertionError(f"Optimizer {args.optimizer} not recognized")
 
