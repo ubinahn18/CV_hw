@@ -124,11 +124,12 @@ if __name__ == '__main__':
 
     # create model
     if args.model == 'linear':
-        model = LinearClassifier()
+        model = LinearClassifier().to(args.device)
     elif args.model == 'fcnn':
-        model = FCNN()
+        model = FCNN().to(args.device)
     else:
         raise AssertionError(f"Model {args.model} not recognized")
+
 
     # create optimizer
     if args.optimizer == 'adamw':
