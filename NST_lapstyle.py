@@ -4,6 +4,7 @@ import torch
 from torchvision import transforms
 from torch.autograd import Variable
 from torch.optim import LBFGS
+import torch.nn.functional as F
 import os
 from models.definitions.vgg19 import Vgg19
 import argparse
@@ -118,10 +119,16 @@ def total_variation(y):
     '''
     return torch.sum(torch.abs(y[:, :, :, :-1] - y[:, :, :, 1:])) + torch.sum(torch.abs(y[:, :, :-1, :] - y[:, :, 1:, :]))
 
-def build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index, style_feature_maps_indices, config):
+def average_pool(img, kernel_size):
+    pooled_img = torch.stack([F.avg_pool2d(img[:, c:c+1], kernel_size, stride=kernel_size) for c in range(img.shape[1])], dim=1)
+    return pooled_img
+
+def build_loss(neural_net, optimizing_img, content_img, target_representations, content_feature_maps_index, style_feature_maps_indices, config):
     '''
     Calculate content_loss, style_loss, and total_variation_loss.
     '''
+    p_list = config['p']
+    laplacian_weights = config['laplacian_weights']
     target_content_representation = target_representations[0]
     target_style_representation = target_representations[1]
     current_set_of_feature_maps = neural_net(optimizing_img)
@@ -133,43 +140,36 @@ def build_loss(neural_net, optimizing_img, target_representations, content_featu
         style_loss += torch.nn.MSELoss(reduction='sum')(gram_gt[0], gram_hat[0])
     style_loss /= len(target_style_representation)
     tv_loss = total_variation(optimizing_img)
-    total_loss = config['content_weight'] * content_loss + config['style_weight'] * style_loss + config['tv_weight'] * tv_loss
-    return total_loss, content_loss, style_loss, tv_loss
-
-def laplacian_loss_multiple(optimizing_img, content_img, p_list, weight_list):
-    '''
-    Calculate the Laplacian loss for multiple pooling sizes.
-    optimizing_img: tensor of the image we are optimizing
-    content_img: tensor of the content image
-    p_list: list of pooling sizes
-    weight_list: list of weights for each Laplacian loss
-    '''
-    total_loss = 0.0
-    for p, weight in zip(p_list, weight_list):
-        # Apply pxp average pooling to both images
-        pooling_layer = torch.nn.AvgPool2d(kernel_size=p, stride=p, padding=0)
-        optimizing_img_pool = pooling_layer(optimizing_img)
-        content_img_pool = pooling_layer(content_img)
-        
-        # Apply Laplacian filter (edge detection) to both images
-        optimizing_img_lap = cv.Laplacian(optimizing_img_pool.squeeze().cpu().numpy(), cv.CV_64F)
-        content_img_lap = cv.Laplacian(content_img_pool.squeeze().cpu().numpy(), cv.CV_64F)
-        
-        # Convert back to tensor for compatibility with PyTorch
-        optimizing_img_lap_tensor = torch.tensor(optimizing_img_lap).to(optimizing_img.device)
-        content_img_lap_tensor = torch.tensor(content_img_lap).to(optimizing_img.device)
-        
-        # Calculate the Laplacian loss for this size and add it to the total
-        total_loss += torch.nn.MSELoss()(optimizing_img_lap_tensor, content_img_lap_tensor) * weight
+    laplacian_loss = 0.0
+    if config['method'] == 'laplacian':
+        for p, weight in zip(p_list, laplacian_weights):
+            optimizing_img_pool = average_pool(optimizing_img, p).squeeze().detach().cpu().numpy()
+            content_img_pool = average_pool(content_img, p).squeeze().detach().cpu().numpy()
     
-    return total_loss
+            # Ensure proper data type for OpenCV
+            optimizing_img_pool = optimizing_img_pool.astype(np.float64)
+            content_img_pool = content_img_pool.astype(np.float64)
+    
+            # Apply Laplacian filter channel-wise
+            optimizing_img_lap = np.stack(
+                [cv.Laplacian(optimizing_img_pool[c],cv.CV_64F) for c in range(optimizing_img_pool.shape[0])]
+            )
+            content_img_lap = np.stack(
+                [cv.Laplacian(content_img_pool[c],cv.CV_64F) for c in range(content_img_pool.shape[0])]
+            )
+    
+            optimizing_img_lap = torch.tensor(optimizing_img_lap, device=optimizing_img.device, dtype=torch.float32)
+            content_img_lap = torch.tensor(content_img_lap, device=content_img.device, dtype=torch.float32)
+    
+            laplacian_loss += weight * torch.nn.MSELoss(reduction='mean')(optimizing_img_lap, content_img_lap)
+            
+    total_loss = config['content_weight'] * content_loss + config['style_weight'] * style_loss + config['tv_weight'] * tv_loss + laplacian_loss
+    return total_loss, content_loss, style_loss, tv_loss, laplacian_loss
+
 
 
 def make_tuning_step(neural_net, optimizer, target_representations, content_feature_maps_index, style_feature_maps_indices, config):
-    '''
-    Performs a step in the tuning loop.
-    (We are tuning only the pixels, not the weights.)
-    '''
+
     def tuning_step(optimizing_img):
         total_loss, content_loss, style_loss, tv_loss = build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index, style_feature_maps_indices, config)
         total_loss.backward()
@@ -211,18 +211,13 @@ def neural_style_transfer(config):
         if torch.is_grad_enabled():
             optimizer.zero_grad()
         
-        total_loss, content_loss, style_loss, tv_loss = build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config)
-        
-        # Add Laplacian loss if specified
-        if config['method'] == 'laplacian':
-            lap_loss = laplacian_loss_multiple(optimizing_img, content_img, config['p'], config['laplacian_weights'])
-            total_loss += lap_loss
+        total_loss, content_loss, style_loss, tv_loss, laplacian_loss = build_loss(neural_net, optimizing_img, content_img, target_representations, content_feature_maps_index_name[0], style_feature_maps_indices_names[0], config)
         
         if total_loss.requires_grad:
             total_loss.backward()
         
         with torch.no_grad():
-            print(f'L-BFGS | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style loss={config["style_weight"] * style_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}, laplacian loss={lap_loss.item():12.4f}' if config['method'] == 'laplacian' else '')
+            print(f'L-BFGS | iteration: {cnt:03}, total loss={total_loss.item():12.4f}, content_loss={config["content_weight"] * content_loss.item():12.4f}, style loss={config["style_weight"] * style_loss.item():12.4f}, tv loss={config["tv_weight"] * tv_loss.item():12.4f}, laplacian loss={laplacian_loss.item():12.4f}' if config['method'] == 'laplacian' else '')
             save_and_maybe_display(optimizing_img, dump_path, config, cnt, num_of_iterations)
         
         cnt += 1
@@ -234,8 +229,8 @@ def neural_style_transfer(config):
 
 # Define the PATH and image names
 PATH = ''
-CONTENT_IMAGE = 'c1.jpg'
-STYLE_IMAGE = 's1.jpg'
+CONTENT_IMAGE = 'c3.jpg'
+STYLE_IMAGE = 's2.jpg'
 
 # Default directories for resources
 default_resource_dir = os.path.join(PATH, 'data')
@@ -267,5 +262,8 @@ if optimization_config['method'] == 'laplacian':
         raise ValueError("Number of Laplacian weights must match the number of average pooling sizes.")
 
 results_path = neural_style_transfer(optimization_config)
+
+print(f"Results saved to: {results_path}")
+
 
 print(f"Results saved to: {results_path}")
