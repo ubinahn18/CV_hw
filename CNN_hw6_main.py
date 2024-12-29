@@ -6,7 +6,7 @@ from torchvision import datasets, transforms
 import torch.optim as optim
 import os
 
-from models import VGG, ResNet, ResNext  # Assuming you have these in `models.py`
+from CNN_hw6_models import VGG, ResNet, ResNext  # Assuming you have these in `models.py`
 
 def train(model, args):
     '''
