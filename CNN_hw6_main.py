@@ -15,19 +15,25 @@ def train(model, args):
         model: neural network classifier (e.g., VGG, ResNet, ResNext)
         args: configuration
     '''
-    # Create dataset and data augmentation
-    transform = transforms.Compose([
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomCrop(32, padding=4),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,))
+    transform_train = transforms.Compose([
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomCrop(32, padding=4),
+    transforms.ToTensor(),
+    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))  # Correct normalization
     ])
-    train_dataset = datasets.CIFAR10(root='./data', train=True, transform=transform, download=True)
-    test_dataset = datasets.CIFAR10(root='./data', train=False, transform=transforms.ToTensor(), download=True)
 
-    # Create dataloaders
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))  # Correct normalization
+    ])
+
+    # Load CIFAR-10 dataset with correct transforms
+    train_dataset = datasets.CIFAR10(root='./data', train=True, transform=transform_train, download=True)
+    test_dataset = datasets.CIFAR10(root='./data', train=False, transform=transform_test, download=True)
+
+    trainloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    testloader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+
 
     # Create optimizer
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
