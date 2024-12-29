@@ -31,8 +31,8 @@ def train(model, args):
     train_dataset = datasets.CIFAR10(root='./data', train=True, transform=transform_train, download=True)
     test_dataset = datasets.CIFAR10(root='./data', train=False, transform=transform_test, download=True)
 
-    trainloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    testloader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
 
     # Create optimizer
