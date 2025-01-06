@@ -36,7 +36,7 @@ def build_loss(neural_net, optimizing_img, target_representations, content_featu
     return total_loss, content_loss, style_loss, tv_loss
 
 
-def make_tuning_step(neural_net, optimizer, target_representation_tensor, content_feature_maps_index, style_feature_maps_indices, config):
+def make_tuning_step(neural_net, optimizer, target_representations, content_feature_maps_index, style_feature_maps_indices, config):
     # Builds function that performs a step in the tuning loop
     def tuning_step(optimizing_img):
         total_loss, content_loss, style_loss, tv_loss = build_loss(neural_net, optimizing_img, target_representations, content_feature_maps_index, style_feature_maps_indices, config)
@@ -99,15 +99,12 @@ def transform_image(img,ang_range,shear_range,trans_range,brightness=0):
     if brightness == 1:
       img = augment_brightness_camera_images(img)
 
-    # Assuming img is already loaded and is a floating-point image (CV_32FC1)
-    img = cv2.convertScaleAbs(img) 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img_copy = img.copy()
+    gray = cv2.cvtColor(img_copy, cv2.COLOR_BGR2GRAY)
     
-    _, thresh = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
+    binary_mask = (gray != 0)
     
-    contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    cnt = contours[0]
+    coords = np.column_stack(np.where(binary_mask > 0))
     x, y, w, h = cv2.boundingRect(cnt)
     
     cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
