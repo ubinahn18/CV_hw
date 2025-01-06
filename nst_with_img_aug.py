@@ -1,5 +1,6 @@
 import utils.utils as utils
 from utils.video_utils import create_video_from_intermediate_results
+import cv2
 
 import torch
 from torch.optim import Adam, LBFGS
@@ -98,6 +99,21 @@ def transform_image(img,ang_range,shear_range,trans_range,brightness=0):
     if brightness == 1:
       img = augment_brightness_camera_images(img)
 
+    # Assuming img is already loaded and is a floating-point image (CV_32FC1)
+    img = cv2.convertScaleAbs(img) 
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    
+    _, thresh = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
+    
+    contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    cnt = contours[0]
+    x, y, w, h = cv2.boundingRect(cnt)
+    
+    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+    img = img[y:y+h,x:x+w]
+
     return img
 
 # added
@@ -157,6 +173,7 @@ def neural_style_transfer(config):
   # list where each element is a style feature vector for one augmented style image
     for i in range(aug_num):
         aug_img = aug_img_list[i]
+        aug_img = utils.prepare_style_image(aug_img)
         aug_style_features.append(neural_net(aug_img))
 
     target_content_representation = content_img_set_of_feature_maps[content_feature_maps_index_name[0]].squeeze(axis=0)
